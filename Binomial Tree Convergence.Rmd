@@ -1,0 +1,85 @@
+---
+title: "Monte Carlo Convergence of the In-the-Money Binomial Tree"
+author: "Edwynn Turner"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+
+```{r}
+# Function to price an American put using a Binomial Tree
+binomial_tree_american_put <- function(S0, K, T, r, sigma, M) {
+  dt <- T / M  #Time Step Size 
+  u <- exp(sigma * sqrt(dt)) # Upturn factor
+  d <- exp(-sigma * sqrt(dt)) # Downward factor
+  p <- (exp(r * dt) - d) / (u - d) # Risk-neutral probability
+
+  # Stock price tree
+  stock_tree <- matrix(0, nrow = M + 1, ncol = M + 1) # Create matrix to store stock prices
+  for (j in 0:M) {
+    for (i in 0:j) {
+      stock_tree[i + 1, j + 1] <- S0 * u^i * d^(j - i) # Number of steps multiplied by upturn and downturn factors
+    }
+  }
+  # Option value tree
+  option_tree <- matrix(0, nrow = M + 1, ncol = M + 1) # Matrix to store option values 
+  option_tree[, M + 1] <- pmax(K - stock_tree[, M + 1], 0)  # Payoff is max(K - S, 0) at maturity, applied to entire column M+1
+
+  # Work backward through the tree
+  for (j in (M - 1):0) { # Go through each column in reverse order starting at M-1  
+    for (i in 0:j) { # Go though each row in the column
+      continuation <- exp(-r * dt) * (p * option_tree[i + 2, j + 2] + (1 - p) * option_tree[i + 1, j + 2])
+      exercise <- pmax(K - stock_tree[i + 1, j + 1], 0)
+      option_tree[i + 1, j + 1] <- pmax(continuation, exercise)
+    }
+  }
+  
+  return(option_tree[1, 1])  # Option price at root
+}
+     
+```
+
+
+
+# Finding the convergence of the Binomial Model to 5 decimal places
+
+```{r}
+# Create a data frame
+Binomial_Tree_Convergence <- data.frame(
+  Column1 = seq(1000, 22000, by = 1000), # Increasing sequence in the first column
+  Column2 = NA                            # Empty column to be filled in by Put Values for differing numbers of periods 
+)
+
+```
+
+
+```{r}
+Number_of_Periods <- seq(1000,22
+                         000,by=1000)
+for (i in Number_of_Periods){
+  Binomial_Tree_Convergence$Column2[i/1000] <- binomial_tree_american_put(S0,S0,T,r,sigma,i)
+}
+print(Binomial_Tree_Convergence)
+```
+
+
+```{r}
+install.packages("ggplot2")
+library(ggplot2)
+
+
+ggplot(data = Binomial_Tree_Convergence, aes(x = Column1, y = Column2)) +
+  geom_point(color = "blue", size = 3) +
+  ylim(2.3235,2.3245)+
+  geom_line(color = "blue", linetype = "solid") +
+  labs(title = "Convergence of Binomial Tree with Varying Number of Periods", x = "Number of Periods, n", y = "Value of In-the-Money Put Option") +
+  theme_classic() +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    axis.title = element_text(size = 14)
+  )
+
+```
+
+
+We can conclude, that to an accuracy of 5 decimal places, the In-the-money American Put option on the S&P 500 would converge to a value of $2.32429. This we be used as our basis of comparison for the 
