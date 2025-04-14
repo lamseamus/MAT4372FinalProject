@@ -1,6 +1,5 @@
 # R File to hold functions 
 library(ggplot2)
-suppressWarnings(library(dplyr)) 
 library(dplyr) 
 library(glue)
 
@@ -212,6 +211,91 @@ price_american_put_Hermite <- function(K, M, N, r, S0, sigma, degree) {
       if (Cash_flow[i, j] != 0) {
         Cash_flow[i, j] <- Cash_flow[i, j] * round(exp(-r * j), 5)
         if (j < M) Cash_flow[i, (j+1):M] <- 0
+        break
+      }
+    }
+  }
+
+  return(mean(rowSums(Cash_flow)))
+}
+
+# Black-Scholes formula for European call
+bs_call <- function(S, K, r, T, sigma) {
+  set.seed(123)
+  d1 <- (log(S / K) + (r + 0.5 * sigma^2) * T) / (sigma * sqrt(T))
+  d2 <- d1 - sigma * sqrt(T)
+  S * pnorm(d1) - K * exp(-r * T) * pnorm(d2)
+}
+
+# Black-Scholes formula for European put
+bs_put <- function(S, K, r, T, sigma) {
+  set.seed(123)
+  d1 <- (log(S / K) + (r + 0.5 * sigma^2) * T) / (sigma * sqrt(T))
+  d2 <- d1 - sigma * sqrt(T)
+  K * exp(-r * T) * pnorm(-d2) - S * pnorm(-d1)
+}
+
+# Function to price an American put using European put and call options 
+price_american_put_longstaff_schwartz_MC_euro <- function(K, M, N, r, S0, sigma, polynomial) {
+  dt <- 1 / M
+  discount <- exp(-r * dt)  
+  set.seed(123)
+  Z <- matrix(rnorm(N * M), nrow = N, ncol = M)  
+  S <- S0 * exp(sigma * sqrt(dt) * t(apply(Z, 1, cumsum)))
+  
+  Cash_flow <- matrix(0, nrow = N, ncol = M)
+  Cash_flow[, M] <- pmax(K - S[, M], 0)
+  
+  for (m in M:2) {
+    X <- S[, m - 1]
+    T_remaining <- (M - m + 1) * dt
+
+    call_bs <- bs_call(X, K, r, T_remaining, sigma)
+    put_bs <- bs_put(X, K, r, T_remaining, sigma)
+
+    df_reg <- data.frame(# Create regressors
+      S = X,
+      call = call_bs,
+      put = put_bs,
+      Y = Cash_flow[, m] * discount
+    )
+
+    df_reg[X > K, ] <- NA
+
+    if (all(is.na(df_reg))) {
+      Cash_flow[, m - 1] <- 0
+      next
+    }
+
+    regression <- lm(polynomial, data = df_reg)
+
+    immediate_exercise <- pmax(K - X, 0)
+
+    df_pred <- data.frame(
+      S = X,
+      call = call_bs,
+      put = put_bs
+    )
+    continuation <- predict(regression, newdata = df_pred)
+
+    full_step <- cbind(continuation, immediate_exercise)
+    full_step[immediate_exercise == 0, ] <- NA
+
+    result_vector <- ifelse(
+      is.na(full_step[, 2]), 0,
+      ifelse(full_step[, 1] > full_step[, 2], 0, full_step[, 2])
+    )
+    Cash_flow[, m - 1] <- result_vector
+  }
+  
+  # Discounting cash flows
+  for (i in 1:nrow(Cash_flow)) {
+    for (j in 1:ncol(Cash_flow)) {
+      if (Cash_flow[i, j] != 0) {
+        Cash_flow[i, j] <- Cash_flow[i, j] * round(exp(-r * j * dt), 5)
+        if (j < ncol(Cash_flow)) {
+          Cash_flow[i, (j + 1):ncol(Cash_flow)] <- 0
+        }
         break
       }
     }
