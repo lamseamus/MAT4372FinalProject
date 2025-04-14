@@ -90,9 +90,135 @@ price_american_put_longstaff_schwartz_MC <- function(K, M, N, r, S0,sigma, polyn
   return(option_price)
 }
 
+# Function to price an American put using Laguerre polynomials
+price_american_put_Laguerre <- function(K, M, N, r, S0, sigma, degree) {
+  
+  dt <- 1/M
+  discount <- exp(-r * dt)  
+  set.seed(123)
+  Z <- matrix(rnorm(N * M), nrow = N, ncol = M)
+  S <- S0 * exp(sigma * sqrt(dt) * t(apply(Z, 1, cumsum)))
+  
+  Cash_flow <- matrix(0, nrow = N, ncol = M)
+  Cash_flow[, M] <- pmax(K - S[, M], 0)
+  
+  laguerre_basis <- function(x, d) {
+    L <- list()
+    L[[1]] <- rep(1, length(x))                                  # L0
+    if (d >= 1) L[[2]] <- -x + 1                                  # L1
+    if (d >= 2) L[[3]] <- 0.5 * (x^2 - 4*x + 2)                   # L2
+    if (d >= 3) L[[4]] <- ( -x^3 + 9*x^2 - 18*x + 6 ) / 6         # L3
+    if (d >= 4) L[[5]] <- (x^4 - 16*x^3 + 72*x^2 - 96*x + 24) / 24 # L4
+    if (d >= 5) L[[6]] <- (-x^5 + 25*x^4 - 200*x^3 + 600*x^2 - 600*x + 120) / 120  # L5
+    do.call(cbind, L[1:(d+1)])
+  }
+  
+  for (m in M:2) {
+    X <- S[, m-1]
+    Y <- Cash_flow[, m] * discount
+    
+    in_the_money <- X < K
+    if (sum(in_the_money) == 0) {
+      Cash_flow[, m-1] <- 0
+      next
+    }
+    
+    X_in <- X[in_the_money]
+    Y_in <- Y[in_the_money]
+    
+    laguerre_features <- laguerre_basis(X_in, degree)
+    regression_df <- data.frame(Y = Y_in, laguerre_features)
+    colnames(regression_df) <- c("Y", paste0("L", 0:degree))
+    
+    regression_formula <- as.formula(paste("Y ~", paste(colnames(regression_df)[-1], collapse = " + ")))
+    regression <- lm(regression_formula, data = regression_df)
+    
+    all_features <- laguerre_basis(X, degree)
+    colnames(all_features) <- paste0("L", 0:degree)
+    continuation <- predict(regression, newdata = as.data.frame(all_features))
+    
+    immediate_exercise <- pmax(K - X, 0)
+    Cash_flow[, m-1] <- ifelse(continuation < immediate_exercise, immediate_exercise, 0)
+  }
 
+  # Discounting early exercises
+  for (i in 1:N) {
+    for (j in 1:M) {
+      if (Cash_flow[i, j] != 0) {
+        Cash_flow[i, j] <- Cash_flow[i, j] * round(exp(-r * j), 5)
+        if (j < M) Cash_flow[i, (j+1):M] <- 0
+        break
+      }
+    }
+  }
 
+  return(mean(rowSums(Cash_flow)))
+}
 
+# Function to price an American put using Hermite polynomials
+price_american_put_Hermite <- function(K, M, N, r, S0, sigma, degree) {
+  
+  dt <- 1/M
+  discount <- exp(-r * dt)  
+  set.seed(123)
+  Z <- matrix(rnorm(N * M), nrow = N, ncol = M)
+  S <- S0 * exp(sigma * sqrt(dt) * t(apply(Z, 1, cumsum)))
+  
+  Cash_flow <- matrix(0, nrow = N, ncol = M)
+  Cash_flow[, M] <- pmax(K - S[, M], 0)
+  
+  hermite_basis <- function(x, d) {
+    H <- list()
+    H[[1]] <- rep(1, length(x))                                  # H0
+    if (d >= 1) H[[2]] <- x                                       # H1
+    if (d >= 2) H[[3]] <- x^2 - 1                                 # H2
+    if (d >= 3) H[[4]] <- x^3 - 3*x                               # H3
+    if (d >= 4) H[[5]] <- x^4 - 6*x^2 + 3                        # H4
+    if (d >= 5) H[[6]] <- x^5 - 10*x^3 + 15*x                    # H5
+    do.call(cbind, H[1:(d+1)])
+  }
+  
+  for (m in M:2) {
+    X <- S[, m-1]
+    Y <- Cash_flow[, m] * discount
+    
+    in_the_money <- X < K
+    if (sum(in_the_money) == 0) {
+      Cash_flow[, m-1] <- 0
+      next
+    }
+    
+    X_in <- X[in_the_money]
+    Y_in <- Y[in_the_money]
+    
+    hermite_features <- hermite_basis(X_in, degree)
+    regression_df <- data.frame(Y = Y_in, hermite_features)
+    colnames(regression_df) <- c("Y", paste0("H", 0:degree))
+    
+    regression_formula <- as.formula(paste("Y ~", paste(colnames(regression_df)[-1], collapse = " + ")))
+    regression <- lm(regression_formula, data = regression_df)
+    
+    all_features <- hermite_basis(X, degree)
+    colnames(all_features) <- paste0("H", 0:degree)
+    continuation <- predict(regression, newdata = as.data.frame(all_features))
+    
+    immediate_exercise <- pmax(K - X, 0)
+    Cash_flow[, m-1] <- ifelse(continuation < immediate_exercise, immediate_exercise, 0)
+  }
+
+  # Discounting early exercises
+  for (i in 1:N) {
+    for (j in 1:M) {
+      if (Cash_flow[i, j] != 0) {
+        Cash_flow[i, j] <- Cash_flow[i, j] * round(exp(-r * j), 5)
+        if (j < M) Cash_flow[i, (j+1):M] <- 0
+        break
+      }
+    }
+  }
+
+  return(mean(rowSums(Cash_flow)))
+}
 
 
 
