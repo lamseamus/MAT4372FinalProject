@@ -62,14 +62,8 @@ price_american_put_longstaff_schwartz_MC <- function(K, M, N, r, S0,sigma, polyn
     immediate_exercise <- pmax(K - S[, m-1], 0)
     continuation <- predict(regression, newdata = as.data.frame(X))
     
-    full_step <- cbind(continuation, immediate_exercise)
-    full_step[immediate_exercise == 0, ] <- NA
+    Cash_flow[, m-1] <- ifelse(continuation < immediate_exercise, immediate_exercise, 0)
     
-    result_vector <- ifelse(
-      is.na(full_step[, 2]), 0,                       
-      ifelse(full_step[, 1] > full_step[, 2], 0, full_step[, 2])
-    )
-    Cash_flow[, m-1] <- result_vector
   }
   
   # Discounting 
@@ -278,14 +272,7 @@ price_american_put_longstaff_schwartz_MC_euro <- function(K, M, N, r, S0, sigma,
     )
     continuation <- predict(regression, newdata = df_pred)
 
-    full_step <- cbind(continuation, immediate_exercise)
-    full_step[immediate_exercise == 0, ] <- NA
-
-    result_vector <- ifelse(
-      is.na(full_step[, 2]), 0,
-      ifelse(full_step[, 1] > full_step[, 2], 0, full_step[, 2])
-    )
-    Cash_flow[, m - 1] <- result_vector
+    Cash_flow[, m-1] <- ifelse(continuation < immediate_exercise, immediate_exercise, 0)
   }
   
   # Discounting cash flows
