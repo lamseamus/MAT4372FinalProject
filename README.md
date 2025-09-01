@@ -1,5 +1,5 @@
 ## An Exploration of Convergence in the Least Squares Monte Carlo Algorithm for American Put Options.
-The complete report can be found [here](https://lamseamus.github.io/Exploration-of-Convergence-in-the-Least-Squares-Monte-Carlo-Algorithm/An_Exploration_of_Convergence_in_the_Least_Squares_Monte_Carlo_Algorithm_for_American_Put_Options.pdf).
+The complete report can be found [here](https://lamseamus.github.io/Exploration-of-Convergence-in-the-Least-Squares-Monte-Carlo-Algorithm/docs/final_report.pdf).
 
 ## Abstract
 The report presents an analysis of how varying parameters of the Least Squares Monte Carlo
